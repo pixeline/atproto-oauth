@@ -195,3 +195,71 @@ Complete all checks before shipping:
 - [ ] Require and inspect token response `scope`; feature-gate on granted scopes
 - [ ] Treat unverified metadata display fields (`client_name`, `logo_uri`) as untrusted unless client is explicitly trusted
 - [ ] Keep identity caches short for auth (`<= 10 minutes`), avoid stale reads during active login
+
+## Implementation Pitfalls and Production Guardrails
+
+These are common failure modes seen in real deployments and how to avoid them.
+
+### 1) Treat OAuth storage adapters as protocol-critical
+
+State/session persistence bugs often surface as OAuth callback failures (not storage errors).
+
+- Normalize KV reads to support both:
+  - JSON strings
+  - already-deserialized JSON objects
+- Verify read-after-write for:
+  - state store
+  - session store
+  - one-time app state mappings (e.g., `returnTo`)
+- Ensure callback can read the exact key format written by authorize flow.
+- Add an integration test for your chosen backend (Redis/KV) that covers:
+  - `set -> get -> del` for OAuth state and session.
+
+### 2) Parse granted scopes from the SDK object, not guessed fields
+
+`client.callback()` typically returns an OAuth session object, not raw token payload.
+
+- Prefer SDK methods (e.g., token info accessor) to obtain granted scopes.
+- Do not assume `session.scope` / `session.tokenSet.scope` exists on all SDK/session types.
+- Feature-gate from the final granted scope set only.
+
+### 3) Use explicit callback error mapping
+
+Not all callback errors should be 500.
+
+- Map unknown/expired authorization session to a clear client error:
+  - `400` + “Login session expired or invalid. Please retry.”
+- Keep `500` for true server failures.
+- Log the internal reason for operators; return user-safe text to clients.
+
+### 4) Validate runtime env from server execution path
+
+OAuth URL correctness can silently break in production if env vars differ between client and server contexts.
+
+- Confirm effective values at runtime for:
+  - app base URL
+  - redirect URI
+  - client metadata URL / client_id
+- Prefer server-safe env variables for server-side OAuth configuration.
+- Verify production metadata endpoint reflects production URLs.
+
+### 5) Keep profile/identity display resilient and scope-minimal
+
+Requesting broader scopes is often unnecessary for basic identity display.
+
+- Keep baseline scope minimal (`atproto`) unless extra capabilities are required.
+- For display-only identity fields (handle/avatar), use layered resolution:
+  1. authenticated profile fetch when available
+  2. public appview/profile endpoint fallback
+  3. DID document (`alsoKnownAs`) fallback for handle
+- Never block login solely because non-critical profile fields are unavailable.
+
+### 6) Add operational smoke tests to release checklist
+
+After each auth-related deployment, verify end-to-end in production:
+
+- `/oauth-client-metadata.json` returns expected `client_id`, `redirect_uris`, `scope`.
+- `/api/oauth/login` returns `302` to auth server with PAR `request_uri`.
+- Fresh login callback succeeds and creates app session.
+- Expired callback returns controlled `400` (not `500`).
+- Header identity rendering uses handle/avatar when resolvable.
