@@ -95,9 +95,23 @@ AT Protocol supports loopback development client IDs.
 Pattern:
 - `http://localhost?scope=<url-encoded-scope>&redirect_uri=<url-encoded-loopback-uri>`
 
+> **⚠️ Important:** The `redirect_uri` encoded in the localhost `client_id` **must** use the literal loopback IP address `http://127.0.0.1:PORT/...` (or `http://[::1]:PORT/...` for IPv6). **Do not use `http://localhost:PORT/...`** as the redirect URI.
+>
+> The AT Protocol OAuth spec only permits the special `client_id: "http://localhost"` when the redirect URI targets the loopback IP addresses `127.0.0.1` or `[::1]`. Using the hostname `localhost` in the redirect URI will be rejected by the Authorization Server. See the [AT Protocol OAuth spec](https://atproto.com/specs/oauth) for the full localhost-client rule.
+
+Example:
+
+```text
+# ✅ Correct redirect_uri — uses loopback IP
+http://127.0.0.1:3000/oauth/callback
+
+# ❌ Wrong redirect_uri — uses hostname (will be rejected)
+http://localhost:3000/oauth/callback
+```
+
 Notes:
 - use only for local development/testing
-- redirect URI should use explicit loopback IP (`127.0.0.1` or `[::1]`) for callback listeners
+- redirect URI must use explicit loopback IP (`127.0.0.1` or `[::1]`) for callback listeners
 
 ## Validation Checklist
 

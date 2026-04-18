@@ -45,6 +45,19 @@
 > | `references/CLIENT-METADATA-REFERENCE.md` | Client metadata field-by-field guide |
 > | `references/SCOPES-REFERENCE.md` | Full AT Protocol scope taxonomy |
 >
+> ## Local Development
+>
+> **⚠️ Important:** When developing locally, your OAuth `redirect_uri` **must** use the literal loopback IP address `http://127.0.0.1:PORT/...` (or `http://[::1]:PORT/...` for IPv6). **Do not use `http://localhost:PORT/...`.**
+>
+> The AT Protocol OAuth spec only grants the special `client_id: "http://localhost"` privilege when the `redirect_uri` contains the loopback IP addresses `127.0.0.1` or `[::1]` — not the hostname `localhost`. Using `localhost` in the redirect URI will cause authorization failures.
+>
+> See the [AT Protocol OAuth spec — localhost client](https://atproto.com/specs/oauth) for details.
+>
+> Example local-development `redirect_uri`:
+>
+> - ✅ Correct: `http://127.0.0.1:3000/oauth/callback`
+> - ❌ Wrong: `http://localhost:3000/oauth/callback` (will be rejected)
+>
 > ## Core References
 >
 > - [AT Protocol OAuth guide](https://atproto.com/guides/oauth)
