@@ -1,6 +1,6 @@
 ---
 name: atproto-oauth
-description: "Use this skill when the user asks to add Bluesky or AT Protocol login, implement atproto OAuth, set up DID-based authentication, handle PAR/DPoP/PKCE flows, configure AT Protocol session management, manage OAuth scopes for atproto/Bluesky, or resolve PDS and Authorization Server endpoints. Covers atproto, bluesky, oauth, login, authentication, DID identity resolution, client metadata, PKCE/PAR/DPoP, PDS and Authorization Server discovery, scope design, and secure token/session validation."
+description: "When the user asks to add Bluesky or AT Protocol login, implement atproto OAuth, set up DID-based authentication, or troubleshoot atproto auth flows, generate a complete implementation covering DID identity resolution, PAR/PKCE S256/DPoP authorization flow, client metadata configuration, OAuth scope selection, PDS and Authorization Server discovery, and security-critical validation checks."
 ---
 
 # AT Protocol OAuth Implementation
