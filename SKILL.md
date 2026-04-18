@@ -196,12 +196,12 @@ Required safeguards for all discovery fetches:
 2. **No open redirects** — do not follow redirects across origins for well-known metadata. Fetch each URL directly and reject unexpected redirects.
 3. **Response size limits** — cap response body size (e.g., 512 KB) to prevent resource exhaustion from oversized payloads.
 4. **Content-Type validation** — require `application/json` for JSON metadata documents; reject unexpected content types.
-5. **Hostname / IP restrictions (SSRF prevention)** — block requests to private/internal IP ranges (`10.x`, `172.16–31.x`, `192.168.x`, `127.x`, `::1`, link-local) when resolving user-supplied handles or DIDs, unless explicitly in local-development mode.
+5. **Hostname / IP restrictions (SSRF prevention)** — block requests to private/internal IP ranges (`10.x`, `172.16-31.x`, `192.168.x`, `127.x`, `::1`, link-local) when resolving user-supplied handles or DIDs, unless explicitly in local-development mode.
 6. **Timeout enforcement** — apply connection and read timeouts (e.g., 10 seconds) to all discovery fetches.
 7. **Schema validation** — validate fetched JSON against expected structure before using any field. Reject documents with unexpected types or missing required fields.
 8. **Strict field extraction** — only read documented fields from fetched metadata. Ignore unknown keys and never eval or interpolate arbitrary string values into URLs, headers, or code paths.
 9. **Chain-of-trust validation** — enforce the full DID → PDS → Authorization Server consistency checks (see Security Checklist) before trusting any endpoint derived from discovery.
-10. **Cache isolation** — cache discovery results per-origin with short TTLs (≤ 10 minutes) and never serve stale cached data during an active login flow.
+10. **Cache isolation** — cache discovery results keyed by the fetched resource's origin with short TTLs (≤ 10 minutes) and never serve stale cached data during an active login flow.
 
 These safeguards are protocol-inherent requirements — the AT Protocol OAuth specification mandates runtime discovery, and the validations above ensure that untrusted responses cannot subvert endpoint selection or authentication decisions.
 

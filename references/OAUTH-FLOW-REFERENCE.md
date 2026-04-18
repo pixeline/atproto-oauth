@@ -63,7 +63,7 @@ From Authorization Server:
 
 All discovery fetches above target untrusted remote servers. Generated code must enforce:
 - **HTTPS only** (no `http://` redirects except localhost dev).
-- **No cross-origin redirects** for well-known metadata URLs.
+- **No cross-origin redirects** — reject any redirect that changes the domain or scheme of a well-known metadata URL.
 - **Response size cap** (e.g., 512 KB) and **read timeout** (e.g., 10 s).
 - **Content-Type `application/json`** required for JSON metadata.
 - **SSRF prevention**: block private/internal IP ranges when resolving user-supplied handles or DIDs.
