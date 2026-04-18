@@ -66,21 +66,23 @@ Use these as templates and adjust scopes/redirects for your app.
 
 ## 4) Localhost Development Client ID
 
+> **⚠️ Important:** The `redirect_uri` **must** use the loopback IP `127.0.0.1` (or `[::1]` for IPv6), **not** the hostname `localhost`. The AT Protocol OAuth spec only allows the special localhost `client_id` when the redirect URI uses literal loopback IP addresses. See the [AT Protocol OAuth spec](https://atproto.com/specs/oauth).
+
 Loopback development client_id format:
 
 ```text
-http://localhost?scope=atproto%20rpc%3Aapp.bsky.actor.getProfile%3Faud%3Ddid%3Aweb%3Aapi.bsky.app%23bsky_appview&redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Foauth%2Fcallback
+http://localhost?scope=atproto%20rpc%3Aapp.bsky.actor.getProfile%3Faud%3Ddid%3Aweb%3Aapi.bsky.app%23bsky_appview&redirect_uri=http%3A%2F%2F127.0.0.1%3A3000%2Foauth%2Fcallback
 ```
 
 The metadata represented by that loopback client_id is equivalent to:
 
 ```json
 {
-  "client_id": "http://localhost?scope=atproto%20rpc%3Aapp.bsky.actor.getProfile%3Faud%3Ddid%3Aweb%3Aapi.bsky.app%23bsky_appview&redirect_uri=http%3A%2F%2F127.0.0.1%3A5173%2Foauth%2Fcallback",
+  "client_id": "http://localhost?scope=atproto%20rpc%3Aapp.bsky.actor.getProfile%3Faud%3Ddid%3Aweb%3Aapi.bsky.app%23bsky_appview&redirect_uri=http%3A%2F%2F127.0.0.1%3A3000%2Foauth%2Fcallback",
   "grant_types": ["authorization_code", "refresh_token"],
   "scope": "atproto rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview",
   "response_types": ["code"],
-  "redirect_uris": ["http://127.0.0.1:5173/oauth/callback"],
+  "redirect_uris": ["http://127.0.0.1:3000/oauth/callback"],  // ⚠️ Must be 127.0.0.1, NOT localhost
   "token_endpoint_auth_method": "none",
   "application_type": "native",
   "dpop_bound_access_tokens": true

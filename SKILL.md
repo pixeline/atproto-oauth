@@ -110,6 +110,7 @@ description: >
                                           Local development exception:
                                           - Loopback `client_id` is allowed via `http://localhost` form (query params carry scope and redirect_uri)
                                           - Use only for local development and testing
+                                          - **IMPORTANT**: The `redirect_uri` inside the localhost client_id MUST use the literal loopback IP `127.0.0.1` or `[::1]` — never the hostname `localhost`. The AT Protocol OAuth spec only permits the special localhost client when the redirect URI uses these literal IP addresses. Using `http://localhost:PORT/...` as the redirect_uri will be rejected. Always use `http://127.0.0.1:PORT/...` (or `http://[::1]:PORT/...` for IPv6). See https://atproto.com/specs/oauth.
 
                                           See complete field-by-field guidance in `references/CLIENT-METADATA-REFERENCE.md`.
 
