@@ -59,6 +59,17 @@ From Authorization Server:
   - `pushed_authorization_request_endpoint`
 - verify `issuer` origin matches metadata URL origin
 
+### Discovery fetch safeguards
+
+All discovery fetches above target untrusted remote servers. Generated code must enforce:
+- **HTTPS only** (no `http://` redirects except localhost dev).
+- **No cross-origin redirects** for well-known metadata URLs.
+- **Response size cap** (e.g., 512 KB) and **read timeout** (e.g., 10 s).
+- **Content-Type `application/json`** required for JSON metadata.
+- **SSRF prevention**: block private/internal IP ranges when resolving user-supplied handles or DIDs.
+- **Schema validation**: validate JSON structure before extracting fields; reject malformed documents.
+- **Strict field extraction**: only use documented fields; ignore unknown keys.
+
 ## 3) Authorization Request (PAR + PKCE + DPoP)
 
 Generate per-attempt values:
