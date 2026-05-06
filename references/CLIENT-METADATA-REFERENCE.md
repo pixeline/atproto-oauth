@@ -126,6 +126,8 @@ Validate metadata before starting auth:
 
 ## Minimal Public Example
 
+Sign-in only. `app.bsky.*` reads route through the public AppView at runtime (`https://public.api.bsky.app`), so no `rpc:` scope is needed.
+
 ```json
 {
   "client_id": "https://app.example.com/oauth-client-metadata.json",
@@ -133,7 +135,26 @@ Validate metadata before starting auth:
   "client_uri": "https://app.example.com",
   "redirect_uris": ["https://app.example.com/oauth/callback"],
   "grant_types": ["authorization_code", "refresh_token"],
-  "scope": "atproto rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview",
+  "scope": "atproto",
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "none",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}
+```
+
+## Write-Capable Public Example (granular scopes)
+
+Posting + list management. Each writable collection gets its own `repo:<nsid>?action=...` scope. See [Repo Scope Syntax](SCOPES-REFERENCE.md#repo-scope-syntax) for the grammar.
+
+```json
+{
+  "client_id": "https://app.example.com/oauth-client-metadata.json",
+  "client_name": "Example List Manager",
+  "client_uri": "https://app.example.com",
+  "redirect_uris": ["https://app.example.com/oauth/callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "scope": "atproto repo:app.bsky.feed.post?action=create&action=delete repo:app.bsky.graph.list?action=create&action=update&action=delete repo:app.bsky.graph.listitem?action=create&action=delete blob:*/*",
   "response_types": ["code"],
   "token_endpoint_auth_method": "none",
   "application_type": "web",
@@ -143,6 +164,8 @@ Validate metadata before starting auth:
 
 ## Minimal Confidential Example
 
+Granular `repo:` scopes preferred over `transition:generic`. Use `transition:generic` only when explicitly justified (broad PDS access, migration tooling, etc.) — see [Transitional Scopes](SCOPES-REFERENCE.md#transitional-scopes-still-supported).
+
 ```json
 {
   "client_id": "https://app.example.com/oauth-client-metadata.json",
@@ -150,7 +173,7 @@ Validate metadata before starting auth:
   "client_uri": "https://app.example.com",
   "redirect_uris": ["https://app.example.com/oauth/callback"],
   "grant_types": ["authorization_code", "refresh_token"],
-  "scope": "atproto transition:generic",
+  "scope": "atproto repo:app.bsky.feed.post?action=create&action=delete blob:*/*",
   "response_types": ["code"],
   "token_endpoint_auth_method": "private_key_jwt",
   "token_endpoint_auth_signing_alg": "ES256",

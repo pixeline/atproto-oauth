@@ -20,7 +20,7 @@ Use `https://app.example.com/oauth-client-metadata.json` as `client_id`.
 import crypto from 'node:crypto'
 import express from 'express'
 import session from 'express-session'
-import { Agent } from '@atproto/api'
+import { Agent, AtpAgent } from '@atproto/api'
 import { JoseKey } from '@atproto/jwk-jose'
 import {
   NodeOAuthClient,
@@ -52,8 +52,11 @@ const oauth = new NodeOAuthClient({
     policy_uri: 'https://app.example.com/privacy',
     redirect_uris: ['https://app.example.com/oauth/callback'],
     grant_types: ['authorization_code', 'refresh_token'],
-    scope:
-      'atproto rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview blob:*/* account:email transition:generic',
+    // Granular scopes only. Reads of app.bsky.* go through the public AppView
+    // (see publicAgent below), so no rpc: scope is needed for getProfile.
+    // Add granular repo:<nsid>?action=... scopes here for any collection the
+    // app actually writes (e.g., repo:app.bsky.feed.post?action=create&action=delete).
+    scope: 'atproto blob:*/* account:email',
     response_types: ['code'],
     application_type: 'web',
     token_endpoint_auth_method: 'private_key_jwt',
@@ -85,6 +88,12 @@ const oauth = new NodeOAuthClient({
     },
   },
 })
+
+// Unauthenticated AppView agent — use for ALL app.bsky.* reads.
+// Avoids routing through the user's PDS, which fails on non-bsky.social
+// PDS deployments that don't fully implement the AppView-proxy contract
+// (returns 401 even though OAuth succeeded).
+const publicAgent = new AtpAgent({ service: 'https://public.api.bsky.app' })
 
 const app = express()
 
@@ -147,8 +156,11 @@ app.get('/oauth/callback', async (req, res, next) => {
 
     req.session.did = oauthSession.did
 
-    const agent = new Agent(oauthSession)
-    const profile = await agent.getProfile({ actor: agent.did })
+    // Profile read via public AppView, not the OAuth-bound agent.
+    // The OAuth agent is reserved for com.atproto.repo.* writes.
+    const profile = await publicAgent.app.bsky.actor.getProfile({
+      actor: oauthSession.did,
+    })
 
     res.json({
       did: oauthSession.did,
@@ -168,8 +180,11 @@ app.get('/me', async (req, res, next) => {
     }
 
     const oauthSession = await oauth.restore(req.session.did)
-    const agent = new Agent(oauthSession)
-    const profile = await agent.getProfile({ actor: agent.did })
+    // Profile read via public AppView, not the OAuth-bound agent.
+    // The OAuth agent is reserved for com.atproto.repo.* writes.
+    const profile = await publicAgent.app.bsky.actor.getProfile({
+      actor: oauthSession.did,
+    })
 
     res.json({ did: oauthSession.did, handle: profile.data.handle })
   } catch (err) {
@@ -195,8 +210,42 @@ app.listen(3000, () => {
 })
 ```
 
-## 4) Notes
+## 4) Write path (when the app actually writes records)
+
+Writes go through the OAuth-bound `Agent`, **not** `publicAgent`. Add the matching `repo:<nsid>?action=...` scope to the metadata first.
+
+```ts
+app.post('/posts', express.json(), async (req, res, next) => {
+  try {
+    if (!req.session.did) {
+      res.status(401).json({ error: 'not authenticated' })
+      return
+    }
+    const oauthSession = await oauth.restore(req.session.did)
+    const oauthAgent = new Agent(oauthSession)
+
+    const result = await oauthAgent.com.atproto.repo.createRecord({
+      repo: oauthAgent.did!,
+      collection: 'app.bsky.feed.post',
+      record: {
+        $type: 'app.bsky.feed.post',
+        text: String(req.body.text || ''),
+        createdAt: new Date().toISOString(),
+      },
+    })
+
+    res.json({ uri: result.data.uri })
+  } catch (err) {
+    next(err)
+  }
+})
+```
+
+To enable this endpoint, the metadata `scope` string must include `repo:app.bsky.feed.post?action=create&action=delete` (and any other collection the app writes).
+
+## 5) Notes
 
 - This pattern is preferred over pure SPA token storage for long-lived sessions.
 - TMB and Client Assertion Backend are alternatives, but BFF is the default recommendation.
 - Keep token/session records in durable encrypted storage in production.
+- **Reads vs writes:** `publicAgent` (unauthenticated, `https://public.api.bsky.app`) for `app.bsky.*` reads; `oauthAgent` (`new Agent(oauthSession)`) only for `com.atproto.repo.*` writes and viewer-bound reads. This split avoids `401 Unauthorized` from non-bsky.social PDS deployments where the AppView-proxy contract is incomplete.

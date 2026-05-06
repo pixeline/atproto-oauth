@@ -126,14 +126,43 @@ Validate token response before trusting identity.
 
 ## Handle Scopes Correctly
 
-Always request `atproto`. Common granular scopes:
-- `rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview`
-- `blob:*/*`
-- `account:email` (optional grant; user may decline)
+Always request `atproto`.
 
-Transitional scopes (still supported):
-- `transition:generic`
-- `transition:chat.bsky` (request with `transition:generic`)
+### Scope Inventory (do this BEFORE writing client metadata)
+
+Wrong scopes are the #1 source of late-stage rework. Run this inventory before authoring `client_metadata.json`:
+
+1. **Enumerate every atproto/Bluesky operation the app performs.** Walk every call to `agent.*`, `xrpc(...)`, or any lexicon NSID the app touches. Include identity reads (`getProfile`, `resolveHandle`), repo writes (`createRecord`, `putRecord`, `deleteRecord`), blob uploads, chat, email, etc.
+2. **Classify each operation as read or write.** Reads do not mutate the user's repo. Writes target `com.atproto.repo.*` against the user's PDS.
+3. **For each read of `app.bsky.*`, prefer the unauthenticated public AppView** at `https://public.api.bsky.app`. No scope, no DPoP, no PDS-proxy fragility. Only request an `rpc:<nsid>?aud=did:web:api.bsky.app#bsky_appview` scope when the read genuinely must be authenticated (e.g. private fields, viewer-state for the calling user, muted/blocked context).
+4. **For each write to the user's repo, request a granular `repo:<nsid>?action=...` scope** per collection. See [Repo Scope Syntax](references/SCOPES-REFERENCE.md#repo-scope-syntax) for the exact grammar.
+5. **Add `account:email`** only if the app actually reads or modifies account email.
+6. **Treat `transition:generic` as a legacy escape hatch, not a default.** It is functionally equivalent to App Password-era full repo access. Prefer composed granular `repo:` scopes. Only request `transition:generic` when you genuinely need broad PDS access AND have justified it (e.g., debugging tools, migration utilities).
+
+Output of the inventory is the literal `scope` string for client metadata. Document the per-operation rationale alongside it so future maintainers do not silently broaden scopes.
+
+### Read vs Write Architecture
+
+Use two agents at runtime:
+
+- **`publicAgent`** — unauthenticated `AtpAgent({ service: 'https://public.api.bsky.app' })`. Use for ALL `app.bsky.*` reads (profiles, posts, feeds, lists, graph data) unless the call requires viewer-bound state.
+- **`oauthAgent`** — the OAuth-bound `Agent` returned by the OAuth client. Use ONLY for `com.atproto.repo.*` writes against the user's repository, plus any reads that genuinely need authentication.
+
+Why this split:
+- The OAuth-bound Agent routes `app.bsky.*` reads *through the user's PDS* (PDS-as-AppView-proxy). Non-bsky.social PDS deployments (eurosky.social, self-hosted, Cocoon, etc.) do not always implement that proxy contract correctly and will return `401 Unauthorized` or other failures. The public AppView avoids this entire layer.
+- Eliminates a network hop (client → public AppView vs. client → user PDS → AppView).
+- Reduces required scope set: no `rpc:app.bsky.*` scopes for reads that go through `publicAgent`.
+
+Common granular scopes (only when justified by the inventory):
+- `rpc:app.bsky.actor.getProfile?aud=did:web:api.bsky.app#bsky_appview` — only if you need authenticated viewer state
+- `repo:app.bsky.feed.post?action=create&action=delete` — posting
+- `repo:app.bsky.graph.list?action=create&action=update&action=delete` — list management
+- `blob:*/*` — media upload
+- `account:email` — optional grant; user may decline
+
+Transitional scopes (still supported, prefer granular alternatives):
+- `transition:generic` — broad PDS access; equivalent to legacy App Password reach. Document a justification when used.
+- `transition:chat.bsky` — chat/DM access; request with `transition:generic`
 - `transition:email`
 
 After token exchange:
@@ -174,6 +203,8 @@ Complete all checks before shipping:
 - [ ] Require and inspect token response `scope`; feature-gate on granted scopes
 - [ ] Treat unverified metadata display fields (`client_name`, `logo_uri`) as untrusted unless client is explicitly trusted
 - [ ] Keep identity caches short for auth (<= 10 minutes), avoid stale reads during active login
+- [ ] For each `app.bsky.*` read, decided between OAuth-bound (with `rpc:` scope) and public AppView; documented the choice
+- [ ] No `transition:generic` in new client metadata unless explicitly justified
 
 ## Third-Party Content Safety
 
@@ -243,10 +274,11 @@ OAuth URL correctness can silently break in production if env vars differ betwee
 Requesting broader scopes is often unnecessary for basic identity display.
 - Keep baseline scope minimal (`atproto`) unless extra capabilities are required.
 - For display-only identity fields (handle/avatar), use layered resolution:
-  1. authenticated profile fetch when available
-  2. public appview/profile endpoint fallback
-  3. DID document (`alsoKnownAs`) fallback for handle
+  1. **public AppView** (`https://public.api.bsky.app`) — preferred path for all `app.bsky.*` reads; works for any account regardless of which PDS hosts them, requires no scope, and avoids PDS-as-AppView-proxy fragility on third-party PDS deployments
+  2. authenticated profile fetch via the OAuth-bound Agent — only when viewer-bound state (e.g., muted/blocked) is required
+  3. DID document (`alsoKnownAs`) fallback for handle when AppView is unavailable
 - Never block login solely because non-critical profile fields are unavailable.
+- Symptom of getting this wrong: `agent.app.bsky.actor.getProfile({ actor: did })` returns `401 Unauthorized` against a non-bsky.social PDS even though OAuth succeeded. Fix by routing reads through an unauthenticated `AtpAgent({ service: 'https://public.api.bsky.app' })`.
 
 ### 6) Add operational smoke tests to release checklist
 
