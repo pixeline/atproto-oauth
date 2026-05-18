@@ -98,6 +98,24 @@ See complete field-by-field guidance in `references/CLIENT-METADATA-REFERENCE.md
 
 Always use: Authorization Code + PKCE with S256 only + PAR + DPoP with server-issued nonces
 
+### Optimize Login UX Without Weakening Auth
+
+Prefer account-targeted login when the user provides a handle or DID.
+- Normalize the entered identifier only enough for user convenience (e.g., trim whitespace, strip a leading `@`; optionally append `.bsky.social` for bare usernames only when the product explicitly wants Bluesky-style shorthand)
+- Resolve the account server-side, bind the expected DID/issuer to the auth state, and pass the original recognizable handle or DID as `login_hint`
+- Redirect directly to the discovered Authorization Server from PAR; do not send the user through an app-level PDS picker or confirmation step unless they explicitly started from a PDS/server hostname
+- When using an SDK that supports target objects (for example `@atcute/oauth-node-client`), use an account target for login (`{ type: 'account', identifier }`) and reserve a PDS target (`{ type: 'pds', serviceUrl }`) for account creation or server-first flows
+- If the Authorization Server already has an active session and prior consent for the same confidential client/scopes, it may silently approve or skip extra screens; the client should enable this by keeping a stable `client_id` and scope set, but must still validate callback `iss`, token `sub`, and granted scopes
+
+Handle signup as a separate flow from login.
+- For signup, start from a deliberately chosen PDS/service target and use `prompt=create` only when the SDK/server supports it
+- Do not force existing-account login through the signup PDS; existing accounts should resolve through their own DID -> PDS -> Authorization Server chain
+
+Preserve application context across the redirect.
+- Store short-lived app state such as `returnTo` separately from OAuth protocol state (signed/httpOnly cookie or server-side store, <= 10 minutes)
+- On callback, validate and consume OAuth state first, create the app session, then redirect only to same-origin relative paths
+- Keep non-critical post-login work (feed/profile pre-warm, cache refresh) out of the critical callback path; run it best-effort after the session is committed
+
 Start authorization session.
 - Generate new random `state` per login attempt
 - Generate new PKCE verifier/challenge per login attempt
@@ -140,6 +158,14 @@ Wrong scopes are the #1 source of late-stage rework. Run this inventory before a
 6. **Treat `transition:generic` as a legacy escape hatch, not a default.** It is functionally equivalent to App Password-era full repo access. Prefer composed granular `repo:` scopes. Only request `transition:generic` when you genuinely need broad PDS access AND have justified it (e.g., debugging tools, migration utilities).
 
 Output of the inventory is the literal `scope` string for client metadata. Document the per-operation rationale alongside it so future maintainers do not silently broaden scopes.
+
+### Permission Sets and Consent Quality
+
+When the app owns a Lexicon namespace and needs several related permissions, consider publishing a permission set and requesting it with `include:<permission-set-nsid>`.
+- Use permission sets for capabilities under the app's own namespace; they can present cleaner titles/details in Authorization Server consent UI
+- Keep cross-namespace permissions, blobs, and unrelated integrations as explicit standalone scopes
+- Permission sets can reduce re-consent churn for same-namespace additions because the set can evolve while the requested `include:` scope remains stable
+- Still include all possible requested scopes in client metadata, and still compare the final granted scope/permissions after callback
 
 ### Read vs Write Architecture
 
@@ -185,6 +211,7 @@ Do not hardcode topology assumptions. A PDS may delegate auth to a separate Auth
 
 - TypeScript SPA: `examples/typescript-spa.md` — package: `@atproto/oauth-client-browser`
 - TypeScript BFF: `examples/typescript-bff.md` — package: `@atproto/oauth-client-node`
+- TypeScript BFF alternative: `@atcute/oauth-node-client` is a valid production-proven option when the codebase already uses atcute; prefer its account-targeted `authorize({ target: { type: 'account', identifier }, ... })` API over hand-rolling discovery
 - Go BFF: `examples/go-bff.md` — package: `github.com/bluesky-social/indigo/atproto/auth/oauth`
 - Python: `examples/python.md` — no official SDK; follow the cookbook-style flow using protocol primitives from `references/OAUTH-FLOW-REFERENCE.md`
 
@@ -200,6 +227,7 @@ Complete all checks before shipping:
 - [ ] Verify token `sub` DID matches expected account
 - [ ] Verify DID -> PDS -> Authorization Server consistency before trusting tokens
 - [ ] Verify handle bidirectionally when login starts from handle
+- [ ] Existing-account login starts from account identifier + `login_hint`, not from a forced PDS picker, unless the user explicitly provided a server hostname
 - [ ] Require and inspect token response `scope`; feature-gate on granted scopes
 - [ ] Treat unverified metadata display fields (`client_name`, `logo_uri`) as untrusted unless client is explicitly trusted
 - [ ] Keep identity caches short for auth (<= 10 minutes), avoid stale reads during active login

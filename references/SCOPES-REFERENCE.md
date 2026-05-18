@@ -21,6 +21,7 @@ Common families:
 - `repo:<nsid>?action=...` (repository record operations on a specific collection — see [Repo Scope Syntax](#repo-scope-syntax))
 - `blob:*/*` (blob upload/read by MIME patterns)
 - `rpc:<nsid>?aud=<did-web-service-id>` (method-level RPC access)
+- `include:<permission-set-nsid>` (published permission set bundle; see [Permission Sets](#permission-sets))
 
 ## Repo Scope Syntax
 
@@ -84,6 +85,29 @@ repo:app.bsky.graph.list?action=create&action=update&action=delete repo:app.bsky
 - Survive future tightening of `transition:*` semantics
 
 Always prefer composed `repo:` scopes for new clients.
+
+## Permission Sets
+
+For apps that define their own Lexicon namespace, permission sets can make consent UI clearer and reduce future re-consent for same-namespace changes.
+
+Use:
+
+```text
+include:com.example.authBasicFeatures
+```
+
+or, when the permission set's RPC permissions inherit a service audience:
+
+```text
+include:com.example.authBasicFeatures?aud=did:web:api.example.com#svc_appview
+```
+
+Guidelines:
+- Define permission sets only for resources under the permission set's own namespace authority.
+- Keep `blob:*/*`, cross-namespace repo permissions, and unrelated integrations as standalone scopes.
+- Give permission sets human-readable titles/details in the Lexicon so Authorization Servers can present clearer consent text.
+- Treat the resolved permissions as dynamic: after callback and refresh, inspect the granted scope/permission result instead of assuming every feature is available.
+- A stable `include:` scope can let same-namespace capability additions roll out without changing the requested OAuth scope string, but cross-namespace additions still require an explicit scope upgrade.
 
 ## Practical Scope Examples
 

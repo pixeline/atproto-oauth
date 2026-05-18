@@ -90,6 +90,12 @@ Build PAR payload:
   - `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`
   - `client_assertion=<signed JWT>`
 
+UX-sensitive routing:
+- If the user entered a handle or DID, treat the flow as account-targeted. Resolve the account first, bind the expected DID/issuer in state, and pass the recognizable identifier as `login_hint`.
+- Do not ask the user to confirm a PDS in the app for normal existing-account login. The DID document and protected resource metadata already identify the correct Authorization Server.
+- If the user entered a PDS/server hostname instead of an account identifier, treat that as a server-first flow and omit `login_hint` until the account is known.
+- Keep account creation separate: start from a deliberate PDS/service target and use a create/signup prompt only for signup flows.
+
 Send:
 - `POST <pushed_authorization_request_endpoint>`
 - `Content-Type: application/x-www-form-urlencoded`
@@ -140,6 +146,7 @@ Required checks:
 Then:
 - persist tokens and session metadata
 - expose only granted permissions to app features
+- restore short-lived app-local state such as `returnTo` only after OAuth state and token validation succeed, and redirect only to same-origin relative paths
 
 ## 6) Authorized API Requests
 

@@ -162,6 +162,29 @@ Posting + list management. Each writable collection gets its own `repo:<nsid>?ac
 }
 ```
 
+## Permission Set Example
+
+If the app publishes Lexicon permission sets for its own namespace, request them with `include:` and keep unrelated resources explicit.
+
+```json
+{
+  "client_id": "https://app.example.com/oauth-client-metadata.json",
+  "client_name": "Example Events",
+  "client_uri": "https://app.example.com",
+  "redirect_uris": ["https://app.example.com/oauth/callback"],
+  "grant_types": ["authorization_code", "refresh_token"],
+  "scope": "atproto include:com.example.events.authFull repo:app.bsky.feed.post?action=create blob:*/*",
+  "response_types": ["code"],
+  "token_endpoint_auth_method": "private_key_jwt",
+  "token_endpoint_auth_signing_alg": "ES256",
+  "jwks_uri": "https://app.example.com/oauth/jwks.json",
+  "application_type": "web",
+  "dpop_bound_access_tokens": true
+}
+```
+
+This can produce clearer authorization text and reduce re-consent when same-namespace permissions evolve. Do not hide cross-namespace access in an app-owned permission set; keep those scopes explicit.
+
 ## Minimal Confidential Example
 
 Granular `repo:` scopes preferred over `transition:generic`. Use `transition:generic` only when explicitly justified (broad PDS access, migration tooling, etc.) — see [Transitional Scopes](SCOPES-REFERENCE.md#transitional-scopes-still-supported).
